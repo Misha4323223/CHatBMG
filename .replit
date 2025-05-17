@@ -3,6 +3,11 @@ run = "npm run dev"
 
 [nix]
 channel = "stable-24_05"
+packages = ["lsof"]
 
 [deployment]
 run = ["sh", "-c", "npm run dev"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80

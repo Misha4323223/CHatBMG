@@ -1,15 +1,19 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
-import * as schema from "@shared/schema";
+import { drizzle } from "drizzle-orm/neon-serverless";
+import { Pool } from "@neondatabase/serverless";
+import * as schema from "./schema"; // схема таблиц
 
-neonConfig.webSocketConstructor = ws;
+// Берём строку подключения из секрета (environment variable)
+const connectionString = process.env.DATABASE_URL;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+if (!connectionString) {
+  throw new Error("DATABASE_URL must be set."); // ошибка, если нет секрета
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+// Создаём пул соединений с базой
+export const pool = new Pool({
+  connectionString,
+  // при необходимости можно добавить ssl, но Neon обычно уже настроен на это
+});
+
+// Инициализируем Drizzle ORM с пулом и схемой
+export const db = drizzle(pool, { schema });
