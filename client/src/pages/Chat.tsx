@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
 function generateUUID() {
-  // простая генерация UUID для сообщений
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = Math.random() * 16 | 0,
       v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -10,9 +9,13 @@ function generateUUID() {
 }
 
 const Chat: React.FC = () => {
-  const [messages, setMessages] = useState<string[]>(['Привет! Чем могу помочь?']);
+  const [messages, setMessages] = useState<{ id: string; role: string; content: string }[]>([
+    { id: generateUUID(), role: 'assistant', content: 'Привет! Чем могу помочь?' }
+  ]);
   const [input, setInput] = useState('');
   const [accessToken, setAccessToken] = useState('');
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [parentMessageId, setParentMessageId] = useState<string>(generateUUID());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,39 +26,54 @@ const Chat: React.FC = () => {
     if (!input.trim() || !accessToken.trim()) return;
 
     const userMessage = input.trim();
-    setMessages(prev => [...prev, userMessage]);
+    const userMessageId = generateUUID();
+
+    // Добавляем сообщение пользователя
+    setMessages(prev => [...prev, { id: userMessageId, role: 'user', content: userMessage }]);
     setInput('');
 
     try {
+      const body = {
+        action: 'next',
+        messages: [
+          {
+            id: userMessageId,
+            role: 'user',
+            content: {
+              content_type: 'text',
+              parts: [userMessage],
+            },
+          },
+        ],
+        model: 'gpt-4o-mini',
+        conversation_id: conversationId,
+        parent_message_id: parentMessageId,
+      };
+
       const response = await fetch('https://chat.openai.com/backend-api/conversation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          action: 'next',
-          messages: [
-            {
-              id: generateUUID(),
-              role: 'user',
-              content: {
-                content_type: 'text',
-                parts: [userMessage],
-              },
-            },
-          ],
-          model: 'gpt-4o-mini',
-          conversation_id: null,
-        }),
+        body: JSON.stringify(body),
       });
 
-      const data = await response.json();
-      const botReply = data.choices?.[0]?.message?.content || 'Извините, бот не ответил.';
+      if (!response.ok) throw new Error('Ошибка сети');
 
-      setMessages(prev => [...prev, botReply]);
+      const data = await response.json();
+
+      // Извлекаем ответ
+      const message = data.message;
+      const botMessageContent = message?.content?.parts?.[0] || 'Извините, бот не ответил.';
+
+      setMessages(prev => [...prev, { id: message.id, role: 'assistant', content: botMessageContent }]);
+
+      // Обновляем conversationId и parentMessageId для следующего запроса
+      setConversationId(data.conversation_id);
+      setParentMessageId(message.id);
     } catch (error) {
-      setMessages(prev => [...prev, 'Ошибка подключения к OpenAI через access token']);
+      setMessages(prev => [...prev, { id: generateUUID(), role: 'assistant', content: 'Ошибка подключения к OpenAI через access token' }]);
       console.error(error);
     }
   };
@@ -82,17 +100,19 @@ const Chat: React.FC = () => {
         backgroundColor: '#f9f9f9',
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
       }}>
-        {messages.map((msg, i) => (
-          <div key={i} style={{
+        {messages.map(msg => (
+          <div key={msg.id} style={{
             padding: '8px 12px',
             marginBottom: 8,
-            backgroundColor: '#e0f0ff',
+            backgroundColor: msg.role === 'user' ? '#d1e7dd' : '#e0f0ff',
             borderRadius: 20,
             maxWidth: '80%',
             wordBreak: 'break-word',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+            marginLeft: msg.role === 'user' ? 'auto' : undefined
           }}>
-            {msg}
+            {msg.content}
           </div>
         ))}
         <div ref={messagesEndRef} />

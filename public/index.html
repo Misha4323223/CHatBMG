@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>💬 BOOOMERANGS Chat</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+    textarea, input { width: 100%; padding: 10px; margin: 10px 0; }
+    button { padding: 10px 20px; font-weight: bold; cursor: pointer; }
+    .response { margin-top: 20px; white-space: pre-wrap; background: #f3f3f3; padding: 15px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>💬 BOOOMERANGS Chat</h1>
+
+  <label>🔑 Access Token:</label>
+  <input type="text" id="token" placeholder="Вставь свой токен из chat.openai.com">
+
+  <label>💬 Сообщение:</label>
+  <textarea id="message" rows="4" placeholder="Напиши что-нибудь..."></textarea>
+
+  <button onclick="sendMessage()">Отправить</button>
+
+  <div class="response" id="response"></div>
+
+  <script>
+    async function sendMessage() {
+      const message = document.getElementById('message').value;
+      const token = document.getElementById('token').value;
+      const responseDiv = document.getElementById('response');
+
+      responseDiv.textContent = '⏳ Отправка запроса...';
+
+      try {
+        // Используем относительный путь, чтобы запрос шел к тому же origin
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, accessToken: token })
+        });
+
+        const data = await res.json();
+
+        if (data?.error) {
+          responseDiv.textContent = '❌ Ошибка: ' + data.error;
+        } else {
+          // Попытка найти ответ ChatGPT
+          const parts = data?.message?.content?.parts?.[0] || JSON.stringify(data, null, 2);
+          responseDiv.textContent = '🤖 Ответ:\n\n' + parts;
+        }
+      } catch (err) {
+        responseDiv.textContent = '💥 Ошибка при запросе: ' + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
